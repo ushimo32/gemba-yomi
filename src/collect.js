@@ -55,7 +55,7 @@ async function collectMaffPress(src) {
 
 async function collectEsmis(src) {
   const out = [];
-  const cutoff = Date.now() - config.lookbackDays * 86400000;
+  const cutoff = Date.now() - config.maxAgeDays * 86400000;
   for (const pub of src.publications) {
     let data;
     try {
@@ -89,11 +89,19 @@ async function collectSource(src) {
   throw new Error(`unknown source kind: ${src.kind}`);
 }
 
+// 発行日が maxAgeDays より古い項目を除外(全ソース共通)。
+// 日付が取れない項目(MAFF等)は判定不能のため残し、seen.jsonの差分に委ねる。
+function withinMaxAge(item) {
+  const cutoff = Date.now() - config.maxAgeDays * 86400000;
+  const t = item.date ? Date.parse(item.date) : NaN;
+  return Number.isNaN(t) || t >= cutoff;
+}
+
 export async function collectAll() {
   const results = [];
   for (const src of sources) {
     try {
-      let items = await collectSource(src);
+      let items = (await collectSource(src)).filter(withinMaxAge);
       if (items.length > config.maxItemsPerSource) {
         items = items.slice(0, config.maxItemsPerSource);
       }

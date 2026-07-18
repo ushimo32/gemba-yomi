@@ -1,4 +1,5 @@
 import { config } from './config.js';
+import { glossaryText } from './glossary.js';
 
 // SDKは実処理時のみ動的import(dry-run等でSDK未導入でも動くように)
 let client;
@@ -13,20 +14,49 @@ async function getClient() {
   return client;
 }
 
-const SYSTEM = `あなたは肉牛の肥育農家向けに畜産情報をキュレーションする編集アシスタントです。
-現場の生産者がすぐ使える形で、正確・簡潔に日本語でまとめます。
-出力は必ず指定のJSONのみ。前置きや説明文は書かないこと。`;
+// 対象読者の定義(すべての判断の基準)
+const READER = `読者は日本の牛の現場で働く人(肥育中心、繁殖・酪農も含む)。
+すべての要約・重要度判定・コメント観点は、この読者にとっての価値で判断すること。`;
+
+const SYSTEM = `あなたは日本の牛の生産者向けに畜産情報をキュレーションする編集アシスタントです。
+${READER}
+正確・簡潔に日本語でまとめます。出力は必ず指定のJSONのみ。前置きや説明文は書かないこと。`;
+
+// 全モード共通の評価基準(畜種フィルタ・重要度・コメント観点・用語集)
+const CRITERIA = `## 対象畜種
+- 牛以外の畜種(羊・豚・鶏など)のみの話題は原則スキップ(skip=true)。
+- ただし疾病(豚熱・アフリカ豚熱・鳥インフルエンザ等)や制度・規制の変更など、牛の現場・業界に波及する話題は残す(skip=false)。
+- 牛と他畜種の混合話題(牛・羊の市況まとめ等)は、牛に関する部分だけを要約対象にする。
+
+## 重要度(日本の肥育経営の数字への直結度で判断。全件を「中」にせず必ず相対的に差をつける)
+- 高: 素牛・枝肉の相場、飼料価格、疾病発生、制度・規制変更など、経営の数字に直接つながる話題。需要・消費の構造変化も、枝肉評価や販売戦略に返るため高に含める。
+- 中: 飼養技術・研究・市場トレンドなど、参考になるが即座に数字は動かない話題。
+- 低: 人物ルポ・イベント・組織の話題。
+判定例:
+- 「素牛の争奪戦(restockersとfeedlotの競合)」→ 高(素牛価格=導入コストに直結)
+- 「ウェルネストレンドと赤身肉需要」→ 高(需要・消費の構造変化は枝肉評価・販売戦略に返る。需要側を軽視しない)
+- 「マメ科飼料で増体向上」→ 中(有用な技術情報だが即座に経営数字は動かない)
+- 「羊農家の人物ルポ」→ 対象外・skip=true(牛以外の畜種単独かつ人物もの)
+
+## コメント観点
+「確認したい」等の感想で終わらせず、日本の肥育現場の具体的な業務(素牛導入・飼料設計・出荷判断・増体管理・衛生対策)のいずれか1つと接続した観点を1文で書く。
+
+## 翻訳用語集(英日。該当語はこの訳語を用いる)
+${glossaryText()}`;
 
 function buildUserPrompt(item) {
   if (item.source.mode === 'headline') {
     // ★見出しのみ(本文なし)。権利面に配慮し、翻訳+話題推測に留める。
-    return `次は海外業界メディアの「見出し」のみです(本文はありません)。
+    return `次は海外業界メディアの「見出し」のみです(本文はありません)。下記の基準に従って処理してください。
 見出し: ${item.title}
+
+${CRITERIA}
 
 以下のJSONだけを返してください:
 {
+  "skip": <true|false 上記「対象畜種」に照らしスキップ対象ならtrue>,
   "lines": ["<見出しの日本語訳>", "<何の話題かの推測を1行>"],
-  "comment": "<現場コメントを書くならこの観点、を1行>",
+  "comment": "<現場業務に接続した観点を1文>",
   "importance": "<高|中|低>"
 }`;
   }
@@ -34,15 +64,19 @@ function buildUserPrompt(item) {
   const ctx = item.context
     ? `\n参考本文(要約の材料。丸写し(転載)禁止・自分の言葉で):\n${item.context.slice(0, 1500)}`
     : '';
-  return `次の畜産関連の情報を、現場の肥育農家向けに日本語3行で要約してください。
-海外ソースの場合は翻訳込みで。原文の丸写し(転載)は禁止で、必ず自分の言葉で書き直すこと。
+  return `次の畜産関連の情報を、下記の基準に従って処理してください。
+海外ソースは翻訳込みで、原文の丸写し(転載)は禁止・必ず自分の言葉で書き直すこと。
+牛と他畜種の混合話題は、牛に関する部分だけを日本語3行で要約すること。
 見出し: ${item.title}${ctx}
+
+${CRITERIA}
 
 以下のJSONだけを返してください:
 {
+  "skip": <true|false 上記「対象畜種」に照らしスキップ対象ならtrue>,
   "lines": ["<1行目>", "<2行目>", "<3行目>"],
-  "comment": "<現場コメントを書くならこの観点、を1行>",
-  "importance": "<高|中|低。疾病発生・相場に直結するものを高>"
+  "comment": "<現場業務に接続した観点を1文>",
+  "importance": "<高|中|低>"
 }`;
 }
 
@@ -68,6 +102,7 @@ async function processOne(item) {
   const parsed = parseJson(text);
   return {
     ...item,
+    skip: parsed.skip === true,
     lines: Array.isArray(parsed.lines) ? parsed.lines : [String(parsed.lines || '')],
     comment: parsed.comment || '',
     importance: ['高', '中', '低'].includes(parsed.importance) ? parsed.importance : '中',
@@ -87,6 +122,7 @@ export async function processItems(items) {
         console.warn(`  Claude処理失敗(${item.url}): ${e.message}`);
         out.push({
           ...item,
+          skip: false, // 失敗は落とさず可視化(後段で人が確認)
           lines: [item.title],
           comment: '(自動要約に失敗。元記事を参照)',
           importance: '中',

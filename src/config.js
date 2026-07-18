@@ -4,8 +4,8 @@
 export const config = {
   // ユーザー指定モデル
   model: 'claude-sonnet-4-6',
-  // 直近何日分を新着とみなすか(ESMISの日付フィルタと初回以降の保険)
-  lookbackDays: 8,
+  // 発行日がこの日数より古い項目は全ソース共通で収集対象外
+  maxAgeDays: 14,
   // 1ソースあたりの処理上限(初回の氾濫防止)
   maxItemsPerSource: 40,
   // Claude並列処理数

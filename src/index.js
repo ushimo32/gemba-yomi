@@ -51,18 +51,28 @@ async function main() {
 
   console.log('Claudeで下ごしらえ中...');
   const processed = await processItems(fresh);
+  const visible = processed.filter((p) => !p.skip);
+  const skipped = processed.length - visible.length;
+  console.log(`要約対象: ${visible.length}件(畜種フィルタでスキップ ${skipped}件)`);
 
   const dateStr = todayJst();
-  const md = renderDraft(processed, dateStr);
-  await mkdir(DRAFTS_DIR, { recursive: true });
-  const outPath = join(DRAFTS_DIR, `${dateStr}.md`);
-  await writeFile(outPath, md, 'utf-8');
-  console.log(`下書き生成: drafts/${dateStr}.md`);
 
+  // スキップ項目も含め、処理した全件をseen.jsonに登録(再処理を防ぐ)
   const now = new Date().toISOString();
   for (const it of fresh) state[it.key] = now;
   await saveState(STATE_PATH, state);
   console.log('state更新完了');
+
+  if (visible.length === 0) {
+    console.log('要約対象が0件(全てスキップ)。下書きは生成しません。');
+    return;
+  }
+
+  const md = renderDraft(visible, dateStr);
+  await mkdir(DRAFTS_DIR, { recursive: true });
+  const outPath = join(DRAFTS_DIR, `${dateStr}.md`);
+  await writeFile(outPath, md, 'utf-8');
+  console.log(`下書き生成: drafts/${dateStr}.md`);
 }
 
 main().catch((e) => {
