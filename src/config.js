@@ -60,10 +60,11 @@ export const sources = [
     // pubIdは実APIで確認済み。追加時はfindByAgency/searchでpubIdを確認して追記。
     publications: [
       { name: 'Cattle on Feed (NASS)', pubId: 2270 },
+      { name: 'Cattle(半期在庫 / NASS)', pubId: 1603 }, // 年2回・1月末/7月末
       { name: 'Livestock Slaughter (NASS)', pubId: 2233 },
       { name: 'Livestock, Dairy, and Poultry Outlook (ERS)', pubId: 1801 },
       { name: 'Feed Outlook (ERS)', pubId: 1762 },
-      // 追加候補(要pubId確認): Cattle(半期在庫), WASDE 等
+      // WASDEは穀物全般で畜産比率が薄いため見送り(飼料穀物はFeed Outlookでカバー)
     ],
   },
 
