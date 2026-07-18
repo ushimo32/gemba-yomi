@@ -24,6 +24,7 @@ jobs:
       - run: npm install
 
       - name: Run collector
+        id: collect
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: node src/index.js
@@ -39,3 +40,22 @@ jobs:
             git commit -m "chore: 週次下書き $(date -u +%Y-%m-%d)"
             git push
           fi
+
+      # 完了通知メール(下書き生成時は目玉入り、新着0件時は「新着なし」)
+      - name: Notify by email
+        if: ${{ steps.collect.outputs.status != '' }}
+        env:
+          GMAIL_USERNAME: ${{ secrets.GMAIL_USERNAME }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          NOTIFY_TO: ${{ secrets.NOTIFY_TO }}
+          STATUS: ${{ steps.collect.outputs.status }}
+          DATE: ${{ steps.collect.outputs.date }}
+          TOTAL: ${{ steps.collect.outputs.total }}
+          DOMESTIC: ${{ steps.collect.outputs.domestic }}
+          FOREIGN: ${{ steps.collect.outputs.foreign }}
+          HIGH: ${{ steps.collect.outputs.high }}
+          SKIPPED: ${{ steps.collect.outputs.skipped }}
+          HIGH_TITLES: ${{ steps.collect.outputs.high_titles }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+        run: python3 .github/scripts/notify.py
