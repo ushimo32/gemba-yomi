@@ -1,11 +1,12 @@
 name: weekly-gemba-yomi
 
-on:
+# キーは明示的に文字列化(YAMLの on -> 真偽値 誤解釈を回避)
+"on":
+  # 手動実行(テスト用)
+  workflow_dispatch:
   schedule:
     # 毎週金曜 11:00 UTC = 20:00 JST(金曜夜)
-    - cron: '0 11 * * 5'
-  # 手動実行(テスト用)
-  workflow_dispatch: {}
+    - cron: "0 11 * * 5"
 
 permissions:
   contents: write
