@@ -5,8 +5,9 @@ name: weekly-gemba-yomi
   # 手動実行(テスト用)
   workflow_dispatch:
   schedule:
-    # 毎週金曜 11:00 UTC = 20:00 JST(金曜夜)
-    - cron: "0 11 * * 5"
+    # 毎週金曜 11:07 UTC = 20:07 JST(金曜夜)
+    # 毎時00分はGitHubのスケジューラが最も混雑し遅延・ドロップしやすいため :07 にずらす
+    - cron: "7 11 * * 5"
 
 permissions:
   contents: write
